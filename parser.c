@@ -32,19 +32,19 @@
 #include <string.h>
 #include <stdio.h>
 
-static Token current;
+static Token t; // current token that we iterate
 
 void parser_init(const char* input) {
   lexer_init(input);
-  current = lexer_next();
+  t = lexer_next();
 }
 
 void advance() {
-  current = lexer_next();
+  t = lexer_next();
 }
 
 int p_match(TokenType type) {
-  if (current.type == type) {
+  if (t.type == type) {
     advance();
     return 1;
   }
@@ -53,7 +53,7 @@ int p_match(TokenType type) {
 
 void expect(TokenType type) {
   if (!p_match(type)) {
-    printf("Unexpected token: %s\n", current.value);
+    printf("Unexpected token: %s\n", t.value);
     exit(1);
   }
 }
@@ -116,20 +116,20 @@ ASTNode* parse_factor();
 // to recognize and decide the statement were parsing, 
 // is it identifier, is it expr, is it print,
 ASTNode* parse_statement() {
-  if (current.type == TOKEN_IDENTIFIER && strcmp(current.value, "let") == 0) {
+  if (t.type == TOKEN_IDENTIFIER && strcmp(t.value, "let") == 0) {
     advance(); // consume 'let'
-    if (current.type != TOKEN_IDENTIFIER) {
+    if (t.type != TOKEN_IDENTIFIER) {
       printf("Expected variable name\n");
       exit(1);
     }
-    char* name = strdup(current.value);
+    char* name = strdup(t.value);
     advance();
     expect(TOKEN_ASSIGN); // expect '='
     ASTNode* val = parse_expr();
     return make_assign_node(name, val);
   }
 
-  if (current.type == TOKEN_IDENTIFIER && strcmp(current.value, "print") == 0) {
+  if (t.type == TOKEN_IDENTIFIER && strcmp(t.value, "print") == 0) {
     advance(); // consume 'print'
     expect(TOKEN_LPAREN);
     ASTNode* val = parse_expr();
@@ -143,8 +143,8 @@ ASTNode* parse_statement() {
 // parses expr wit + or -, and build binary operation nodes
 ASTNode* parse_expr() {
   ASTNode* left = parse_term();
-  while (current.type == TOKEN_PLUS || current.type == TOKEN_MINUS) {
-    char op = current.value[0];
+  while (t.type == TOKEN_PLUS || t.type == TOKEN_MINUS) {
+    char op = t.value[0];  // we store the operand 
     advance();
     ASTNode* right = parse_term();
     left = make_binop_node(op, left, right);
@@ -155,8 +155,8 @@ ASTNode* parse_expr() {
 // parses higher priority operators * and /
 ASTNode* parse_term() {
   ASTNode* left = parse_factor();
-  while (current.type == TOKEN_MUL || current.type == TOKEN_DIV) {
-    char op = current.value[0];
+  while (t.type == TOKEN_MUL || t.type == TOKEN_DIV) {
+    char op = t.value[0];
     advance();
     ASTNode* right = parse_factor();
     left = make_binop_node(op, left, right);
@@ -166,14 +166,14 @@ ASTNode* parse_term() {
 
 // parses integers, vrbl names, grouped expressions
 ASTNode* parse_factor() {
-  if (current.type == TOKEN_INT) {
-    int val = atoi(current.value);
+  if (t.type == TOKEN_INT) {
+    int val = atoi(t.value);
     advance();
     return make_int_node(val);
   }
 
-  if (current.type == TOKEN_IDENTIFIER) {
-    char* name = strdup(current.value);
+  if (t.type == TOKEN_IDENTIFIER) {
+    char* name = strdup(t.value);
     advance();
     return make_var_node(name);
   }
@@ -184,7 +184,7 @@ ASTNode* parse_factor() {
     return expr;
   }
 
-  printf("Unexpected token in factor: %s\n", current.value);
+  printf("Unexpected token in factor: %s\n", t.value);
   exit(1);
 }
 
