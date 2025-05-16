@@ -8,7 +8,7 @@
     lexer_init()
 
 //just check the next token
-    lexer_peek() 
+    src[i]() 
 
 //move position to next token
     char lexer_advance()
@@ -34,99 +34,102 @@
 */
 
 
-static const char* src = NULL;
-static int pos = 0;
+static const char* src = NULL; // using a pointer to the string to access it instead of copying 
+static int i = 0;
+
+// ------------------------ functions ----------------
 
 //initialize lexer, returns the list of tokens
 void lexer_init(const char* input) {
-  src = input;
-  pos = 0;
+  src = input; // src points to the string input
+  i = 0;
 }
 
-char lexer_peek() {
-  return src[pos];
-}
-
+//moves one position ahead
 char lexer_advance() {
-  return src[pos++];
+  return src[i++];
 }
 
+// checks if its a letter
 int is_letter(char c) {
-  return isalpha(c) || c == '_';
+  return isalpha(c);
 }
 
+// checks if its a digit
 int is_digit(char c) {
   return c >= '0' && c <= '9';
 }
 
-int l_match(char e) {   //e is for expected character
-  if (lexer_peek() == e) {
-    lexer_advance();
-    return 1;
+//checks if current char matches an expected character
+int l_match(char e) {   //e is for expected
+  if (src[i] == e) {
+    lexer_advance(); // if it does match it moves ahead
   }
-  return 0;
+  return 0; 
 }
 
 void skip_whitespace() {
-  while (isspace(lexer_peek())) 
+  while (isspace(src[i])) 
     lexer_advance();
 }
 
-// Simple string duplication function
-char* str_duplicate(const char* start, int len) {
-  char* str = malloc(len + 1); // +1 for the null terminator
-  if (!str) return NULL;
-  strncpy(str, start, len);
-  str[len] = '\0';
-  return str;
+char* getSubstring(const char* str, int start, int length) {
+    char* subStr = malloc(length + 1);
+    strncpy(subStr, str + start, length);
+    subStr[length] = '\0';
+    return subStr;
 }
+
+
+
+//--------------------- tokens --------------------------
 
 Token make_token(TokenType type, const char* value) {
   Token t;
   t.type = type;
-  t.value = strdup(value);
+  t.value = value;
   return t;
 }
 
 
 Token read_number() {
-  int start = pos;
-  while (is_digit(lexer_peek())) 
+  int start = i;
+  while (is_digit(src[i])) 
     lexer_advance();
-  int len = pos - start;
-  char* num = str_duplicate(src + start, len);  // Use simple str_duplicate
+  int len = i - start;
+  char* num = getSubstring(src, start, len);  // Use simple getSubstring
   return make_token(TOKEN_INT, num);
 }
 
 Token read_identifier() {
-  int start = pos;
-  while (is_letter(lexer_peek()) || is_digit(lexer_peek())) 
+  int start = i;
+  while (is_letter(src[i]) || is_digit(src[i]))  // evaluate if i is a digit in case the identifier contains a digit (eg: x1)
     lexer_advance();
-  int len = pos - start;
-  char* id = str_duplicate(src + start, len);
+  int len = i - start;
+  char* id = getSubstring(src, start, len);
   return make_token(TOKEN_IDENTIFIER, id);
 }
 
 Token read_string() {
   lexer_advance(); // skip opening "
-  int start = pos;
-  while (lexer_peek() != '"' && lexer_peek() != '\0') 
+  int start = i;
+  while (src[i] != '"' && src[i] != '\0') 
     lexer_advance();
-  int len = pos - start;
-  char* str = str_duplicate(src + start, len); // 
+  int len = i - start;
+  char* str = getSubstring(src, start, len); // 
   lexer_advance(); // skip closing "
   return make_token(TOKEN_STRING, str);
 }
 
 Token read_operator() {
-  char c = lexer_peek();
+  char c = src[i];
 
-  if (c == '=' && src[pos + 1] == '=') {
+  if (c == '=' && src[i + 1] == '=') {
     lexer_advance(); 
     lexer_advance();
     return make_token(TOKEN_EQ, "==");
   }
-  if (c == '!' && src[pos + 1] == '=') {
+  if (c == '!' && src[i + 1] == '=') {
     lexer_advance(); 
     lexer_advance();
     return make_token(TOKEN_NEQ, "!=");
@@ -137,49 +140,55 @@ Token read_operator() {
   return make_token(TOKEN_OPERATOR, op);
 }
 
+
 Token lexer_next() {
   skip_whitespace();
 
-  char c = lexer_peek();
-  if (c == '\0') 
-    return make_token(TOKEN_EOF, "");
+  char c = src[i];
 
-  if (is_letter(c)) 
-    return read_identifier();
-  if (is_digit(c)) 
-    return read_number();
-  if (c == '"') 
-    return read_string();
-  
-    //to diffferentiate between assignm operator '=' and checking '=='
-  if (c == '=' && src[pos + 1] == '=') {
-    lexer_advance(); lexer_advance();
-    return make_token(TOKEN_EQ, "==");
-  }
-  if (c == '=') {
-    lexer_advance();
-    return make_token(TOKEN_ASSIGN, "=");
-  }
-
-
-  switch (c) {
-    case '+': lexer_advance(); return make_token(TOKEN_PLUS, "+");
-    case '-': lexer_advance(); return make_token(TOKEN_MINUS, "-");
-    case '*': lexer_advance(); return make_token(TOKEN_MUL, "*");
-    case '/': lexer_advance(); return make_token(TOKEN_DIV, "/");
-    case '(': lexer_advance(); return make_token(TOKEN_LPAREN, "(");
-    case ')': lexer_advance(); return make_token(TOKEN_RPAREN, ")");
-    case ';': lexer_advance(); return make_token(TOKEN_SEMICOLON, ";");
-
-    default:
+  while (c != '\0') { // while its not EOF, keep checking
+    if (is_letter(c)) 
+      return read_identifier();
+    if (is_digit(c)) 
+      return read_number();
+    if (c == '"') 
+      return read_string();
+    
+      //to diffferentiate between assignm operator '=' and checking '=='
+    //case 1: equal op
+    if (c == '=' && src[i + 1] == '=') {
+      lexer_advance(); lexer_advance();
+      return make_token(TOKEN_EQ, "==");
+    }
+    //case 2: assignment op
+    if (c == '=') {
       lexer_advance();
-      return make_token(TOKEN_INVALID, "?");
+      return make_token(TOKEN_ASSIGN, "=");
+    }
+
+
+    switch (c) {
+      case '+': lexer_advance(); return make_token(TOKEN_PLUS, "+");
+      case '-': lexer_advance(); return make_token(TOKEN_MINUS, "-");
+      case '*': lexer_advance(); return make_token(TOKEN_MUL, "*");
+      case '/': lexer_advance(); return make_token(TOKEN_DIV, "/");
+      case '(': lexer_advance(); return make_token(TOKEN_LPAREN, "(");
+      case ')': lexer_advance(); return make_token(TOKEN_RPAREN, ")");
+      case ';': lexer_advance(); return make_token(TOKEN_SEMICOLON, ";");
+
+      default:
+        lexer_advance();
+        return make_token(TOKEN_INVALID, "?");
+    }
+   return make_token(TOKEN_EOF, "");
   }
 }
 
+
+
 Token peek_token() {
-  int saved_pos = pos;
+  int saved_i = i;
   Token t = lexer_next();
-  pos = saved_pos;
+  i = saved_i;
   return t;
 }
