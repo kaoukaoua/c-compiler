@@ -1,0 +1,37 @@
+calc: EOL 
+   | S EOL 
+   | LET id '(' idlist ')' '=' L EOL 
+ ;
+
+S: IF E THEN L           
+   | IF E THEN L ELSE L  
+   | WHILE E DO L           
+   | E
+;
+
+L: 
+   | S ';' L 
+   ;
+
+E:| E CMP E          
+   | E '+' E          
+   | E '-' E          
+   | E '*' E          
+   | E '/' E         
+   | '|' E              
+   | '(' E ')'          
+   | '-' E %prec UMINUS 
+   | NUMBER               
+   | FUNC '(' E ')' 
+   | id                
+   | id '=' E         
+   | id '(' E ')'
+   | E ',' E
+;
+
+
+idlist: id       
+ | id ',' idlist 
+;
+
+%%

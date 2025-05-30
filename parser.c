@@ -1,209 +1,149 @@
-//  first define the ASTNode, 
-// and the NodeType(int, vrbl, binary op, assignment, print)
-// finally the fct declarations: (parser_init, parser_statement, free_ast..)
-
-/*fucntions:
-    parser_init(): initializes the lexer and takes the first token
-    advance() = moves forward
-    p_match(type) = checks if token matches and moves if its true
-    expect(type) = if token doesnt match, stops and exits 
-*/
-
-/* We build AST nodes for int, var, binop, 
-    make_int_node() 
-    make_var_node(), 
-    make_binop_node(), 
-
-/* Create nodes for assignments (like let..) and "print" statement
-    make_assign_node(), 
-    make_print_node(), 
-
-/* Parse THE statement first, then expression, then term, then factor..
-    parse_statement(), 
-
-/* PARSING EXPRESSIONS
-    parse_expr() = for + and -
-    parse_term() = for * and /
-    parse_factor() = for literals, vrbls, parentheses
-*/
-
 #include "parser.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
-static Token t; // current token that we iterate
-
-void parser_init(const char* input) {
-  lexer_init(input);
-  t = lexer_next();
+static TokenNode* current;
+//the helpers
+Token peek() {
+    return current->token;
 }
 
-void advance() {
-  t = lexer_next();
+static void advance() {
+    if (current->next)
+        current = current->next;
 }
 
-int p_match(TokenType type) {
-  if (t.type == type) {
-    advance();
-    return 1;
-  }
-  return 0;
-}
-
-void expect(TokenType type) {
-  if (!p_match(type)) {
-    printf("Unexpected token: %s\n", t.value);
-    exit(1);
-  }
-}
-
-
-
-// make nodes for integers, variables, op...
-
-ASTNode* make_int_node(int value) {
-  ASTNode* node = malloc(sizeof(ASTNode));
-  node->type = NODE_INT;
-  node->int_value = value;
-  return node;
-}
-
-ASTNode* make_var_node(char* name) {
-  ASTNode* node = malloc(sizeof(ASTNode));
-  node->type = NODE_VAR;
-  node->var_name = strdup(name);
-  return node;
-}
-
-ASTNode* make_binop_node(char op, ASTNode* left, ASTNode* right) {
-  ASTNode* node = malloc(sizeof(ASTNode));
-  node->type = NODE_BINOP;
-  node->binop.op = op;
-  node->binop.left = left;
-  node->binop.right = right;
-  return node;
-}
-
-//builds a node for an assignment
-ASTNode* make_assign_node(char* name, ASTNode* value) {
-  ASTNode* node = malloc(sizeof(ASTNode));
-  node->type = NODE_ASSIGN;
-  node->assign.var_name = strdup(name);
-  node->assign.value = value;
-  return node;
-}
-
-// build a node for a "print" statement
-ASTNode* make_print_node(ASTNode* expr) {
-  ASTNode* node = malloc(sizeof(ASTNode));
-  node->type = NODE_PRINT;
-  node->print_expr = expr;
-  return node;
+int match(TokenType type) {
+    if (peek().type == type) {
+        advance();
+        return 1;
+    }
+    return 0;
 }
 
 // Forward declarations
-ASTNode* parse_expr();
-ASTNode* parse_term();
-ASTNode* parse_factor();
-
-// Grammar:
-// stmt: "let" IDENT "=" expr
-//     | "print" "(" expr ")"
-//     | expr
+static ASTNode* primary();
+static ASTNode* T();
+static ASTNode* E(); 
+static ASTNode* F();
 
 
-// to recognize and decide the statement were parsing, 
-// is it identifier, is it expr, is it print,
-ASTNode* parse_statement() {
-  if (t.type == TOKEN_IDENTIFIER && strcmp(t.value, "let") == 0) {
-    advance(); // consume 'let'
-    if (t.type != TOKEN_IDENTIFIER) {
-      printf("Expected variable name\n");
-      exit(1);
+//fcts to make nodes depending on the type
+ASTNode* make_int_node(int value) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = NODE_INT;
+    node->int_lit.value = value;
+    return node;
+}
+
+ASTNode* make_var_node(const char* name) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = NODE_VAR;
+    node->var.name = strdup(name);
+    return node;
+}
+
+ASTNode* make_binop_node(char op, ASTNode* left, ASTNode* right) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = NODE_BINOP;
+    node->binop.op = op;
+    node->binop.left = left;
+    node->binop.right = right;
+    return node;
+}
+
+ASTNode* make_assign_node(const char* name, ASTNode* value) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = NODE_ASSIGN;
+    node->assign.name = strdup(name);
+    node->assign.value = value;
+    return node;
+}
+
+
+//what primary does is checking (using match()) the given token type and make a node of its type
+//check is by match(), which advances if the pointer to the given node matches a type, and returns 0 if not
+static ASTNode* primary() {
+    Token tok = peek(); // peek is basically the pointer pointing to the current token 
+
+    if (match(TOKEN_INT)) {
+        return make_int_node(tok.value);
+    } else if (match(TOKEN_IDENTIFIER)) {
+        char* name = strdup(tok.lexeme);
+        if (match(TOKEN_ASSIGN)) {
+            ASTNode* val = E();
+            return make_assign_node(name, val);
+        }
+        return make_var_node(name);
+    } else if (match(TOKEN_LPAREN)) {
+        ASTNode* node = E();
+        match(TOKEN_RPAREN);
+        return node;
     }
-    char* name = strdup(t.value);
-    advance();
-    expect(TOKEN_ASSIGN); // expect '='
-    ASTNode* val = parse_expr();
-    return make_assign_node(name, val);
-  }
 
-  if (t.type == TOKEN_IDENTIFIER && strcmp(t.value, "print") == 0) {
-    advance(); // consume 'print'
-    expect(TOKEN_LPAREN);
-    ASTNode* val = parse_expr();
-    expect(TOKEN_RPAREN);
-    return make_print_node(val);
-  }
-
-  return parse_expr(); // fallback
+    return NULL;
 }
 
-// parses expr wit + or -, and build binary operation nodes
-ASTNode* parse_expr() {
-  ASTNode* left = parse_term();
-  while (t.type == TOKEN_PLUS || t.type == TOKEN_MINUS) {
-    char op = t.value[0];  // we store the operand 
-    advance();
-    ASTNode* right = parse_term();
-    left = make_binop_node(op, left, right);
-  }
-  return left;
+static ASTNode* T() {
+    ASTNode* node = primary();
+
+    while (peek().type == TOKEN_MUL || peek().type == TOKEN_DIV) {
+        char op = peek().lexeme[0];
+        advance();
+        ASTNode* right = primary();
+        node = make_binop_node(op, node, right);
+    }
+
+    return node;
 }
 
-// parses higher priority operators * and /
-ASTNode* parse_term() {
-  ASTNode* left = parse_factor();
-  while (t.type == TOKEN_MUL || t.type == TOKEN_DIV) {
-    char op = t.value[0];
-    advance();
-    ASTNode* right = parse_factor();
-    left = make_binop_node(op, left, right);
-  }
-  return left;
+static ASTNode* E() {
+    ASTNode* node = T();
+
+    while (peek().type == TOKEN_PLUS || peek().type == TOKEN_MINUS) {
+        char op = peek().lexeme[0];
+        advance();
+        ASTNode* right = T();
+        node = make_binop_node(op, node, right);
+    }
+
+    return node;
+}
+//the parse function that makes the parsing, and class the other fcts
+
+ASTNode* parse(TokenList* tokens) {
+    current = tokens->head;
+    ASTNode** stmts = NULL;
+    int count = 0;
+
+    while (peek().type != TOKEN_SEMICOLON) {
+        ASTNode* stmt = E();  // or call statement() if you have one
+        stmts = realloc(stmts, sizeof(ASTNode*) * (count + 1));
+        stmts[count++] = stmt;
+        match(TOKEN_SEMICOLON); // optional semicolon match
+    }
+
+    return stmts;
 }
 
-// parses integers, vrbl names, grouped expressions
-ASTNode* parse_factor() {
-  if (t.type == TOKEN_INT) {
-    int val = atoi(t.value);
-    advance();
-    return make_int_node(val);
-  }
-
-  if (t.type == TOKEN_IDENTIFIER) {
-    char* name = strdup(t.value);
-    advance();
-    return make_var_node(name);
-  }
-
-  if (p_match(TOKEN_LPAREN)) {
-    ASTNode* expr = parse_expr(); // we call back parse_expr() for parentheses
-    expect(TOKEN_RPAREN);
-    return expr;
-  }
-
-  printf("Unexpected token in factor: %s\n", t.value);
-  exit(1);
-}
 
 void free_ast(ASTNode* node) {
-  if (!node) return;
-  switch (node->type) {
-    case NODE_INT: break;
-    case NODE_VAR: free(node->var_name); break;
-    case NODE_BINOP:
-      free_ast(node->binop.left);
-      free_ast(node->binop.right);
-      break;
-    case NODE_ASSIGN:
-      free(node->assign.var_name);
-      free_ast(node->assign.value);
-      break;
-    case NODE_PRINT:
-      free_ast(node->print_expr);
-      break;
-  }
-  free(node);
+
+    if (!node) return;
+    switch (node->type) {
+        case NODE_BINOP:
+            free_ast(node->binop.left);
+            free_ast(node->binop.right);
+            break;
+        case NODE_ASSIGN:
+            free(node->assign.name);
+            free_ast(node->assign.value);
+            break;
+        case NODE_VAR:
+            free(node->var.name);
+            break;
+        default: break;
+    }
+    free(node);
 }

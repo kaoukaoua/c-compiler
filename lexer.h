@@ -17,16 +17,34 @@ typedef enum {
   TOKEN_EOF,
   TOKEN_INVALID,
   TOKEN_SEMICOLON,
-  TOKEN_ASSIGN // FOR '='
+  TOKEN_LBRACE, // {
+  TOKEN_RBRACE, // }
+  TOKEN_LT,     // <
+  TOKEN_GT,     // >
+  TOKEN_LE,     // <=
+  TOKEN_GE,     // >=
+  TOKEN_ASSIGN// for '='
 } TokenType;
 
 typedef struct {
-  TokenType type;
-  char* value;
+    TokenType type;
+    char* lexeme;
+    int value;  // valid if type == TOKEN_INT
 } Token;
 
-void lexer_init(const char* input);
-Token lexer_next();
-Token peek_token();
+typedef struct TokenNode {
+    Token token;
+    struct TokenNode* next;
+} TokenNode;
+
+typedef struct {
+    TokenNode* head;
+    TokenNode* tail;
+} TokenList;
+
+// Lexer functions
+TokenList* lex(const char* input);
+void print_tokens(TokenList* list);
+void free_tokens(TokenList* list);
 
 #endif

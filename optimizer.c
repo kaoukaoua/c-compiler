@@ -14,10 +14,10 @@ ASTNode* optimize(ASTNode* node) {
       if (left->type == NODE_INT && right->type == NODE_INT) {
         int result;
         switch (node->binop.op) {
-          case '+': result = left->int_value + right->int_value; break;
-          case '-': result = left->int_value - right->int_value; break;
-          case '*': result = left->int_value * right->int_value; break;
-          case '/': result = right->int_value != 0 ? left->int_value / right->int_value : 0; break;
+          case '+': result = left->int_lit.value + right->int_lit.value; break;
+          case '-': result = left->int_lit.value - right->int_lit.value; break;
+          case '*': result = left->int_lit.value * right->int_lit.value; break;
+          case '/': result = right->int_lit.value != 0 ? left->int_lit.value / right->int_lit.value : 0; break;
           default: return node;
         }
         free_ast(node);
@@ -34,7 +34,7 @@ ASTNode* optimize(ASTNode* node) {
       return node;
 
     case NODE_PRINT:
-      node->print_expr = optimize(node->print_expr);
+      node->print.expr = optimize(node->print.expr);
       return node;
 
     default:
